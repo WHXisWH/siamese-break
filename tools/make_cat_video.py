@@ -95,6 +95,18 @@ def fill_occluders(rgb, alpha):
     return np.maximum(alpha, gaussian_filter(keep.astype(np.float32), 1.0))
 
 
+def drop_fragments(alpha, min_ratio):
+    from scipy.ndimage import binary_dilation, label
+
+    labels, n = label(binary_dilation(alpha > 0.3, iterations=3))
+    if n <= 1:
+        return alpha
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+    keep = sizes >= sizes.max() * min_ratio
+    return np.where(keep[labels], alpha, 0)
+
+
 def compose(frames, masks, out_dir, gamma, sigma, fill):
     out_dir.mkdir(parents=True, exist_ok=True)
     for f, a in zip(frames, masks):
@@ -102,6 +114,7 @@ def compose(frames, masks, out_dir, gamma, sigma, fill):
         alpha = np.clip(a, 0, 1)
         if fill:
             alpha = fill_occluders(rgb, alpha)
+        alpha = drop_fragments(alpha, 0.03)
         alpha = alpha ** gamma
         rgb = decontaminate(rgb, alpha, sigma)
         rgba = np.dstack([rgb, alpha * 255]).round().clip(0, 255).astype(np.uint8)

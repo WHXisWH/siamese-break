@@ -1,6 +1,6 @@
 {
   "name": "siamese-break",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "每工作 30 分钟，一只暹罗猫会跑出来占满屏幕卖萌 1 分钟",
   "main": "src/main.js",
   "author": "WHXisWH",
