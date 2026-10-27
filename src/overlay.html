@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; media-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>暹罗猫</title>
+<style>
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #cat {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    height: min(100vh, calc(100vw * 9 / 16));
+    width: auto;
+    transform: translateY(105%);
+    transition: transform 1100ms cubic-bezier(0.18, 0.9, 0.3, 1.08);
+    pointer-events: none;
+  }
+
+  body.in #cat { transform: translateY(0); }
+
+  body.out #cat {
+    transform: translateY(105%);
+    transition: transform 700ms cubic-bezier(0.55, 0, 0.9, 0.4);
+  }
+
+  #bubble {
+    position: absolute;
+    top: 6vh;
+    left: 50%;
+    transform: translate(-50%, -12px);
+    opacity: 0;
+    transition: opacity 500ms ease, transform 500ms ease;
+    padding: 14px 26px 12px;
+    border-radius: 22px;
+    background: rgba(255, 250, 243, 0.94);
+    box-shadow: 0 8px 30px rgba(60, 40, 20, 0.25);
+    color: #4b3727;
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  body.in #bubble { opacity: 1; transform: translate(-50%, 0); transition-delay: 600ms; }
+  body.out #bubble { opacity: 0; transition-delay: 0ms; }
+
+  #title { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+  #sub { margin-top: 6px; font-size: 14px; color: #8a6f58; }
+</style>
+</head>
+<body>
+<div id="bubble">
+  <div id="title">喵～</div>
+  <div id="sub"></div>
+</div>
+<video id="cat" src="../assets/cat.webm" muted loop playsinline preload="auto"></video>
+<script>
+  const params = new URLSearchParams(location.search);
+  const duration = Number(params.get('duration')) || 60;
+  const interval = Number(params.get('interval')) || 30;
+  const video = document.getElementById('cat');
+  const title = document.getElementById('title');
+  const sub = document.getElementById('sub');
+  let left = duration;
+  let leaving = false;
+  let countdown = null;
+
+  title.textContent = `喵～已经工作 ${interval} 分钟啦，起来活动一下吧`;
+
+  function renderSub() {
+    sub.textContent = `点一下或按 Esc 让我走开 · ${left} 秒后我自己走`;
+  }
+
+  function finish() {
+    if (window.siamese) window.siamese.done();
+    else window.close();
+  }
+
+  function leave() {
+    if (leaving) return;
+    leaving = true;
+    clearInterval(countdown);
+    document.body.classList.remove('in');
+    document.body.classList.add('out');
+    setTimeout(finish, 750);
+  }
+
+  function arrive() {
+    renderSub();
+    requestAnimationFrame(() => document.body.classList.add('in'));
+    countdown = setInterval(() => {
+      left -= 1;
+      renderSub();
+      if (left <= 0) leave();
+    }, 1000);
+  }
+
+  video.addEventListener('canplay', () => {
+    video.play().then(arrive, finish);
+  }, { once: true });
+  video.addEventListener('error', finish);
+  setTimeout(() => { if (!countdown) finish(); }, 8000);
+
+  window.addEventListener('mousedown', leave);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') leave();
+  });
+</script>
+</body>
+</html>
