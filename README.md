@@ -47,12 +47,7 @@ SIAMESE_INTERVAL_SECONDS=10 SIAMESE_DURATION_SECONDS=8 npm start
 
 ### 打包
 
-推送 `v*` 格式的 tag，GitHub Actions 会在 Windows 环境里打包，并把安装包发布到 Releases：
-
-```bash
-git tag v1.0.1
-git push origin v1.0.1
-```
+每次推送到 `main`（改动了 `src/`、`assets/` 或 `package.json`），GitHub Actions 都会在 Windows 环境里打包，并把安装包发布到 Releases，版本号取 `package.json` 里的 `version`。发新版时记得先改版本号；版本号不变的话，会覆盖同版本的安装包。也可以在 Actions 页面手动运行 `build`。
 
 ### 换一只猫
 
