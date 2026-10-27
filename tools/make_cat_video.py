@@ -70,7 +70,7 @@ def decontaminate(rgb, alpha, sigma):
 
 
 def fill_occluders(rgb, alpha):
-    from scipy.ndimage import binary_opening, gaussian_filter
+    from scipy.ndimage import binary_closing, binary_dilation, binary_opening, find_objects, gaussian_filter, label
 
     f = rgb / 255
     greenish = f[..., 1] - np.maximum(f[..., 0], f[..., 2])
@@ -78,7 +78,21 @@ def fill_occluders(rgb, alpha):
     above = np.maximum.accumulate(cat, axis=0)
     below = np.maximum.accumulate(cat[::-1], axis=0)[::-1]
     gaps = binary_opening(above & below & ~cat & (greenish < 0.03), iterations=1)
-    return np.maximum(alpha, gaussian_filter(gaps.astype(np.float32), 1.0))
+    labels, _ = label(binary_dilation(gaps, iterations=12))
+    keep = np.zeros_like(gaps)
+    for i, box in enumerate(find_objects(labels), 1):
+        if box and box[1].stop - box[1].start >= 0.2 * gaps.shape[1]:
+            keep |= (labels == i) & gaps
+    if keep.any():
+        from scipy.ndimage import median_filter
+
+        h = keep.shape[0]
+        cols = keep.any(axis=0)
+        top = np.where(cols, keep.argmax(axis=0), h)
+        top = median_filter(top, size=31, mode="nearest")
+        rows = np.arange(h)[:, None]
+        keep = keep | (rows >= top[None, :])
+    return np.maximum(alpha, gaussian_filter(keep.astype(np.float32), 1.0))
 
 
 def compose(frames, masks, out_dir, gamma, sigma, fill):
