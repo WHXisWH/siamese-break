@@ -93,11 +93,11 @@ venv/bin/python tools/make_cat_video.py cat.mp4 assets/cats/siamese/cat.webm --w
   --cut-slope -0.036 --lift-keys "1:1080,18:1080,31:0"
 ```
 
-曼基康用的参数：原视频是手机竖拍的，先截取 21.4–26.2 秒、按 30fps 导出帧，再以猫身体底部为锚点做防抖，把猫放大到撑满画面高度，底部沿毯子的边缘渐隐。
+曼基康用的参数：原视频是手机竖拍的，先截取 14.0–18.0 秒（猫趴在毯子上、整只露出来的一段）、按 30fps 导出帧，再以猫身体底部为锚点做防抖，把猫放大到撑满画面高度，底部沿毯子的边缘渐隐。
 
 ```bash
 mkdir -p work/frames
-ffmpeg -ss 21.4 -to 26.2 -i munchkin.mp4 -vf fps=30 -an work/frames/%04d.png
+ffmpeg -ss 14.0 -to 18.0 -i munchkin.mp4 -vf fps=30 -an work/frames/%04d.png
 venv/bin/python tools/make_cat_video.py munchkin.mp4 assets/cats/munchkin/cat.webm --work work \
   --skip-extract --no-fill --frame 1440x1080 --fps 30
 ```
