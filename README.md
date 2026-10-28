@@ -60,3 +60,11 @@ venv/bin/python tools/make_cat_video.py 你的猫.mp4 assets/cat.webm --work wor
 ```
 
 需要先装好 ffmpeg。在 CPU 上每帧大约要 20 多秒。
+
+现在这只猫是用下面的参数做的：前面的篮子按帧沿横杆切掉，再把画面往下挪，让猫从屏幕底部升上来。
+
+```bash
+venv/bin/python tools/make_cat_video.py cat.mp4 assets/cat.webm --work work --no-fill \
+  --cut-keys "1:790,12:784,24:804,36:804,42:864,46:904,50:960,54:1000,58:1050,62:1100" \
+  --cut-slope -0.036 --lift-keys "1:1080,18:1080,31:0"
+```

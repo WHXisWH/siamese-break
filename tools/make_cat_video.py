@@ -107,8 +107,33 @@ def drop_fragments(alpha, min_ratio):
     return np.where(keep[labels], alpha, 0)
 
 
-def compose(frames, masks, out_dir, gamma, sigma, fill):
+def parse_cut_keys(text):
+    keys = sorted((int(k), float(v)) for k, v in (item.split(":") for item in text.split(",") if item))
+    return [k for k, _ in keys], [v for _, v in keys]
+
+
+def cut_and_lower(rgb, alpha, cut_center, slope, margin, max_shift, feather):
+    h, w = alpha.shape
+    if cut_center >= h:
+        return rgb, alpha
+    xs = np.arange(w)
+    line = cut_center - margin + slope * (xs - w / 2)
+    rows = np.arange(h)[:, None]
+    alpha = alpha * np.clip((line[None, :] - rows) / feather, 0, 1)
+    shift = int(round(min(h - (cut_center - margin), max_shift)))
+    if shift <= 0:
+        return rgb, alpha
+    rgb2 = np.zeros_like(rgb)
+    alpha2 = np.zeros_like(alpha)
+    rgb2[shift:] = rgb[:h - shift]
+    alpha2[shift:] = alpha[:h - shift]
+    return rgb2, alpha2
+
+
+def compose(frames, masks, out_dir, gamma, sigma, fill, cut_keys, cut_slope, cut_margin, lift_keys, feather):
     out_dir.mkdir(parents=True, exist_ok=True)
+    keys = parse_cut_keys(cut_keys) if cut_keys else None
+    lifts = parse_cut_keys(lift_keys) if lift_keys else None
     for f, a in zip(frames, masks):
         rgb = np.asarray(Image.open(f).convert("RGB")).astype(np.float32)
         alpha = np.clip(a, 0, 1)
@@ -117,6 +142,11 @@ def compose(frames, masks, out_dir, gamma, sigma, fill):
         alpha = drop_fragments(alpha, 0.03)
         alpha = alpha ** gamma
         rgb = decontaminate(rgb, alpha, sigma)
+        if keys:
+            n = int(f.stem)
+            cut = float(np.interp(n, keys[0], keys[1], right=alpha.shape[0] + cut_margin + 1))
+            lift = float(np.interp(n, lifts[0], lifts[1])) if lifts else alpha.shape[0]
+            rgb, alpha = cut_and_lower(rgb, alpha, cut, cut_slope, cut_margin, lift, feather)
         rgba = np.dstack([rgb, alpha * 255]).round().clip(0, 255).astype(np.uint8)
         Image.fromarray(rgba, "RGBA").save(out_dir / f.name)
 
@@ -156,6 +186,11 @@ def main():
     p.add_argument("--decontam", type=float, default=6.0)
     p.add_argument("--no-pingpong", action="store_true")
     p.add_argument("--no-fill", action="store_true")
+    p.add_argument("--cut-keys", default="")
+    p.add_argument("--cut-slope", type=float, default=0.0)
+    p.add_argument("--cut-margin", type=float, default=8.0)
+    p.add_argument("--cut-feather", type=float, default=50.0)
+    p.add_argument("--lift-keys", default="")
     args = p.parse_args()
 
     frames_dir = args.work / "frames"
@@ -169,7 +204,7 @@ def main():
     masks = smooth_masks(masks, args.smooth)
 
     rgba_dir = args.work / "rgba"
-    compose(frames, masks, rgba_dir, args.gamma, args.decontam, not args.no_fill)
+    compose(frames, masks, rgba_dir, args.gamma, args.decontam, not args.no_fill, args.cut_keys, args.cut_slope, args.cut_margin, args.lift_keys, args.cut_feather)
     encode(rgba_dir, [f.name for f in frames], args.output, args.fps, args.crf, not args.no_pingpong)
     print("done", args.output, flush=True)
 
