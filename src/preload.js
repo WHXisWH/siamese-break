@@ -1,5 +1,5 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('siamese', {
+contextBridge.exposeInMainWorld('catBreak', {
   done: () => ipcRenderer.send('cat:done')
 });

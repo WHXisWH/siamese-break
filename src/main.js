@@ -2,6 +2,10 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain, powerMonit
 const path = require('path');
 const fs = require('fs');
 
+const catId = require('../package.json').catVariant || process.env.CAT_VARIANT || 'siamese';
+const cat = require('./cats.json')[catId];
+const catDir = path.join(__dirname, '..', 'assets', 'cats', catId);
+
 const DEFAULTS = {
   intervalMinutes: 30,
   durationSeconds: 60,
@@ -28,8 +32,8 @@ function saveSettings() {
 }
 
 const settings = loadSettings();
-const debugIntervalSeconds = Number(process.env.SIAMESE_INTERVAL_SECONDS) || 0;
-const durationSeconds = Number(process.env.SIAMESE_DURATION_SECONDS) || settings.durationSeconds;
+const debugIntervalSeconds = Number(process.env.CAT_INTERVAL_SECONDS) || 0;
+const durationSeconds = Number(process.env.CAT_DURATION_SECONDS) || settings.durationSeconds;
 
 if (settings.compatMode) app.disableHardwareAcceleration();
 
@@ -88,7 +92,7 @@ function statusLabel() {
 
 function refreshTray() {
   if (!tray) return;
-  tray.setToolTip(`暹罗猫休息提醒\n${statusLabel()}`);
+  tray.setToolTip(`${cat.displayName}\n${statusLabel()}`);
   const paused = pausedUntil > Date.now();
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: statusLabel(), enabled: false },
@@ -121,7 +125,7 @@ function refreshTray() {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'tray.png'));
+  const icon = nativeImage.createFromPath(path.join(catDir, 'tray.png'));
   tray = new Tray(icon);
   tray.on('click', () => tray.popUpContextMenu());
   tray.on('double-click', () => showCat());
@@ -163,7 +167,9 @@ function showCat() {
   catWindow.loadFile(path.join(__dirname, 'overlay.html'), {
     query: {
       duration: String(durationSeconds),
-      interval: String(settings.intervalMinutes)
+      interval: String(settings.intervalMinutes),
+      video: `../assets/cats/${catId}/cat.webm`,
+      align: cat.align
     }
   });
 
@@ -231,5 +237,5 @@ app.on('before-quit', () => {
 });
 
 process.on('uncaughtException', (err) => {
-  dialog.showErrorBox('暹罗猫休息提醒出错了', String(err && err.stack || err));
+  dialog.showErrorBox(`${cat.displayName}出错了`, String(err && err.stack || err));
 });

@@ -9,6 +9,7 @@ on:
       - "assets/**"
       - "package.json"
       - "package-lock.json"
+      - "electron-builder.config.js"
       - ".github/workflows/build.yml"
   workflow_dispatch:
 
@@ -18,35 +19,56 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cat: [siamese, munchkin]
+    env:
+      CAT_VARIANT: ${{ matrix.cat }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - id: meta
+        shell: bash
+        run: |
+          read -r version tag name < <(node -e "const c=require('./src/cats.json')[process.env.CAT_VARIANT];console.log(c.version, c.tagPrefix + c.version, c.displayName)")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$tag already released, skipping"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.meta.outputs.exists == 'false'
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      - if: steps.meta.outputs.exists == 'false'
+        run: npm ci
 
-      - id: version
-        shell: bash
-        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - if: steps.meta.outputs.exists == 'false'
+        run: npm run dist
 
-      - run: npx electron-builder --win nsis portable --x64 --publish never
-
-      - uses: actions/upload-artifact@v4
+      - if: steps.meta.outputs.exists == 'false'
+        uses: actions/upload-artifact@v4
         with:
-          name: SiameseBreak-windows
-          path: dist/SiameseBreak-*.exe
+          name: ${{ matrix.cat }}-windows
+          path: dist/${{ matrix.cat }}/*.exe
 
-      - uses: softprops/action-gh-release@v2
+      - if: steps.meta.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: 暹罗猫休息提醒 v${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.name }} v${{ steps.meta.outputs.version }}
           target_commitish: ${{ github.sha }}
-          make_latest: true
-          overwrite_files: true
-          files: dist/SiameseBreak-*.exe
+          make_latest: ${{ matrix.cat == 'siamese' }}
+          files: dist/${{ matrix.cat }}/*.exe
           body: |
-            下载 `SiameseBreak-Setup-${{ steps.version.outputs.version }}.exe` 双击安装即可；不想安装可以下载 Portable 版直接运行。
+            下载文件名里带 `Setup` 的 exe，双击安装即可；不想安装可以下载 Portable 版直接运行。
             如果 Windows 提示“已保护你的电脑”，点「更多信息」→「仍要运行」。

@@ -130,7 +130,52 @@ def cut_and_lower(rgb, alpha, cut_center, slope, margin, max_shift, feather):
     return rgb2, alpha2
 
 
-def compose(frames, masks, out_dir, gamma, sigma, fill, cut_keys, cut_slope, cut_margin, lift_keys, feather):
+def body_anchors(masks, window):
+    raw = []
+    for m in masks:
+        cat = m > 0.5
+        rows = np.where(cat.any(axis=1))[0]
+        top, low = rows.min(), rows.max()
+        lowest = np.where(cat.any(axis=0), cat.shape[0] - 1 - np.argmax(cat[::-1], axis=0), -1)
+        bottom = np.percentile(lowest[lowest >= 0], 90)
+        band = cat[int(top + 0.6 * (bottom - top)):int(bottom) + 1]
+        cx = np.nonzero(band)[1].mean()
+        raw.append((cx, bottom, top))
+    raw = np.array(raw, dtype=np.float64)
+    k = np.ones(window) / window
+    pad = window // 2
+    smooth = np.stack([np.convolve(np.pad(raw[:, i], pad, mode="edge"), k, mode="valid") for i in range(3)], axis=1)
+    return smooth
+
+
+def fade_bottom(alpha, feather):
+    cat = alpha > 0.5
+    h = alpha.shape[0]
+    lowest = np.where(cat.any(axis=0), h - 1 - np.argmax(cat[::-1], axis=0), -1).astype(np.float32)
+    rows = np.arange(h, dtype=np.float32)[:, None]
+    return alpha * np.clip((lowest[None, :] - rows) / feather, 0, 1)
+
+
+def place(rgb, alpha, anchor, scale, size):
+    from PIL import Image as Img
+
+    w, h = size
+    cx, bottom, _ = anchor
+    sw, sh = round(rgb.shape[1] * scale), round(rgb.shape[0] * scale)
+    rgb_s = np.asarray(Img.fromarray(rgb.clip(0, 255).astype(np.uint8)).resize((sw, sh), Img.LANCZOS)).astype(np.float32)
+    a_s = np.asarray(Img.fromarray((alpha * 255).astype(np.uint8)).resize((sw, sh), Img.LANCZOS)).astype(np.float32) / 255
+    ox = round(w / 2 - cx * scale)
+    oy = round(h - bottom * scale)
+    out_rgb = np.zeros((h, w, 3), np.float32)
+    out_a = np.zeros((h, w), np.float32)
+    x0, y0 = max(ox, 0), max(oy, 0)
+    x1, y1 = min(ox + sw, w), min(oy + sh, h)
+    out_rgb[y0:y1, x0:x1] = rgb_s[y0 - oy:y1 - oy, x0 - ox:x1 - ox]
+    out_a[y0:y1, x0:x1] = a_s[y0 - oy:y1 - oy, x0 - ox:x1 - ox]
+    return out_rgb, out_a
+
+
+def compose(frames, masks, out_dir, gamma, sigma, fill, cut_keys, cut_slope, cut_margin, lift_keys, feather, framing=None):
     out_dir.mkdir(parents=True, exist_ok=True)
     keys = parse_cut_keys(cut_keys) if cut_keys else None
     lifts = parse_cut_keys(lift_keys) if lift_keys else None
@@ -142,6 +187,9 @@ def compose(frames, masks, out_dir, gamma, sigma, fill, cut_keys, cut_slope, cut
         alpha = drop_fragments(alpha, 0.03)
         alpha = alpha ** gamma
         rgb = decontaminate(rgb, alpha, sigma)
+        if framing:
+            alpha = fade_bottom(alpha, framing["feather"])
+            rgb, alpha = place(rgb, alpha, framing["anchors"][int(f.stem) - 1], framing["scale"], framing["size"])
         if keys:
             n = int(f.stem)
             cut = float(np.interp(n, keys[0], keys[1], right=alpha.shape[0] + cut_margin + 1))
@@ -191,10 +239,16 @@ def main():
     p.add_argument("--cut-margin", type=float, default=8.0)
     p.add_argument("--cut-feather", type=float, default=50.0)
     p.add_argument("--lift-keys", default="")
+    p.add_argument("--frame", default="")
+    p.add_argument("--frame-fill", type=float, default=0.96)
+    p.add_argument("--bottom-feather", type=float, default=40.0)
+    p.add_argument("--anchor-window", type=int, default=9)
+    p.add_argument("--skip-extract", action="store_true")
     args = p.parse_args()
 
     frames_dir = args.work / "frames"
-    extract_frames(args.video, frames_dir, args.width, args.height)
+    if not args.skip_extract:
+        extract_frames(args.video, frames_dir, args.width, args.height)
     frames = sorted(frames_dir.glob("[0-9][0-9][0-9][0-9].png"))
     if not frames:
         sys.exit("no frames extracted")
@@ -203,8 +257,16 @@ def main():
     masks = [np.asarray(Image.open(mask_path(f, args.model)).convert("L")).astype(np.float32) / 255 for f in frames]
     masks = smooth_masks(masks, args.smooth)
 
+    framing = None
+    if args.frame:
+        w, h = (int(v) for v in args.frame.split("x"))
+        anchors = body_anchors(masks, args.anchor_window)
+        scale = args.frame_fill * h / max(b - t for _, b, t in anchors)
+        framing = {"anchors": anchors, "scale": scale, "size": (w, h), "feather": args.bottom_feather}
+        print(f"framing scale {scale:.2f}", flush=True)
+
     rgba_dir = args.work / "rgba"
-    compose(frames, masks, rgba_dir, args.gamma, args.decontam, not args.no_fill, args.cut_keys, args.cut_slope, args.cut_margin, args.lift_keys, args.cut_feather)
+    compose(frames, masks, rgba_dir, args.gamma, args.decontam, not args.no_fill, args.cut_keys, args.cut_slope, args.cut_margin, args.lift_keys, args.cut_feather, framing)
     encode(rgba_dir, [f.name for f in frames], args.output, args.fps, args.crf, not args.no_pingpong)
     print("done", args.output, flush=True)
 
