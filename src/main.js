@@ -45,6 +45,11 @@ let catWindow = null;
 let nextAt = 0;
 let pausedUntil = 0;
 let ticker = null;
+let intervalWindow = null;
+
+const INTERVAL_PRESETS = [15, 20, 30, 45, 60, 90, 120];
+const MIN_INTERVAL = 1;
+const MAX_INTERVAL = 480;
 
 function intervalMs() {
   return debugIntervalSeconds ? debugIntervalSeconds * 1000 : settings.intervalMinutes * 60 * 1000;
@@ -55,6 +60,77 @@ function resetTimer() {
   nextAt = Date.now() + intervalMs();
   refreshTray();
 }
+
+function formatMinutes(minutes) {
+  if (minutes % 60 === 0) return `${minutes / 60} 小时`;
+  if (minutes > 60) return `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分钟`;
+  return `${minutes} 分钟`;
+}
+
+function setIntervalMinutes(minutes) {
+  const value = Math.round(Number(minutes));
+  if (!Number.isFinite(value) || value < MIN_INTERVAL || value > MAX_INTERVAL) return false;
+  settings.intervalMinutes = value;
+  saveSettings();
+  if (!catWindow) resetTimer();
+  refreshTray();
+  return true;
+}
+
+function intervalMenu() {
+  const current = settings.intervalMinutes;
+  const isPreset = INTERVAL_PRESETS.includes(current);
+  return [
+    ...INTERVAL_PRESETS.map((minutes) => ({
+      label: `每 ${formatMinutes(minutes)}`,
+      type: 'radio',
+      checked: minutes === current,
+      click: () => setIntervalMinutes(minutes)
+    })),
+    { type: 'separator' },
+    {
+      label: isPreset ? '自定义…' : `自定义…（现在是每 ${formatMinutes(current)}）`,
+      type: 'radio',
+      checked: !isPreset,
+      click: () => openIntervalWindow()
+    }
+  ];
+}
+
+function openIntervalWindow() {
+  if (intervalWindow) {
+    intervalWindow.focus();
+    return;
+  }
+  intervalWindow = new BrowserWindow({
+    width: 380,
+    height: 230,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    title: `${cat.displayName} · 多久出现一次`,
+    icon: path.join(catDir, 'icon.png'),
+    show: false,
+    webPreferences: { preload: path.join(__dirname, 'preload.js') }
+  });
+  intervalWindow.setMenuBarVisibility(false);
+  intervalWindow.loadFile(path.join(__dirname, 'interval.html'), {
+    query: { current: String(settings.intervalMinutes), min: String(MIN_INTERVAL), max: String(MAX_INTERVAL) }
+  });
+  intervalWindow.once('ready-to-show', () => intervalWindow && intervalWindow.show());
+  intervalWindow.on('closed', () => {
+    intervalWindow = null;
+    refreshTray();
+  });
+}
+
+ipcMain.handle('settings:interval', (event, minutes) => {
+  const ok = setIntervalMinutes(minutes);
+  if (ok && intervalWindow) intervalWindow.close();
+  return ok;
+});
 
 function pause() {
   pausedUntil = Date.now() + settings.pauseMinutes * 60 * 1000;
@@ -102,6 +178,7 @@ function refreshTray() {
       ? { label: '取消暂停', click: () => resetTimer() }
       : { label: `暂停 ${settings.pauseMinutes / 60} 小时`, click: () => pause() },
     { type: 'separator' },
+    { label: `多久出现一次（每 ${formatMinutes(settings.intervalMinutes)}）`, submenu: intervalMenu() },
     {
       label: '开机自动启动',
       type: 'checkbox',
@@ -230,6 +307,7 @@ app.whenReady().then(() => {
   powerMonitor.on('unlock-screen', onBackToDesk);
 
   if (process.argv.includes('--cat-now')) showCat();
+  if (process.argv.includes('--interval-settings')) openIntervalWindow();
 });
 
 app.on('before-quit', () => {

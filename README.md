@@ -6,12 +6,12 @@
 
 | 猫 | 程序名 | 下载 |
 |---|---|---|
-| 暹罗猫：从屏幕底部升起来，打哈欠、东张西望 | SiameseBreak | [Releases 里的 `v*`](https://github.com/WHXisWH/siamese-break/releases/latest) |
+| 暹罗猫：坐在屏幕正中间，喵喵叫、伸爪子挥拳、舔嘴巴 | SiameseBreak | [Releases 里的 `v*`](https://github.com/WHXisWH/siamese-break/releases/latest) |
 | 曼基康：整只猫坐在屏幕正中间，看着你、左右张望 | MunchkinBreak | [Releases 里的 `munchkin-v*`](https://github.com/WHXisWH/siamese-break/releases) |
 
 ## 同事怎么用
 
-1. 打开上面的下载链接，下载文件名里带 `Setup` 的 exe，比如 `SiameseBreak-Setup-1.0.2.exe` 或 `MunchkinBreak-Setup-1.0.0.exe`。
+1. 打开上面的下载链接，下载文件名里带 `Setup` 的 exe，比如 `SiameseBreak-Setup-1.1.0.exe` 或 `MunchkinBreak-Setup-1.1.0.exe`。
 2. 双击安装。安装不需要管理员权限，装完会自动运行。
    - 如果 Windows 弹出“Windows 已保护你的电脑”，点 **更多信息** → **仍要运行**。这是因为程序没有购买代码签名证书，不是病毒。
 3. 程序会常驻在屏幕右下角的托盘区（猫头图标，可能要先点 `^` 展开才能看到），默认开机自动启动。
@@ -22,7 +22,7 @@
 
 - 点一下屏幕任意位置，或按 `Esc`，猫猫就会走开。
 - 不管它的话，1 分钟后会自己走。
-- 猫猫走后重新开始计时 30 分钟。
+- 猫猫走后重新开始计时（默认 30 分钟，可以在托盘菜单里改）。
 
 ### 托盘菜单（点一下猫头图标）
 
@@ -31,11 +31,12 @@
 | 下一只猫猫：xx:xx | 显示下次出现的时间 |
 | 现在就召唤猫猫 | 马上看猫 |
 | 暂停 1 小时 | 开会、共享屏幕、演示 PPT 之前点一下，1 小时内猫猫不会出现 |
+| 多久出现一次 | 选每 15 分钟到每 2 小时；选“自定义…”可以填 1 到 480 之间任意分钟数。改完从现在开始重新计时 |
 | 开机自动启动 | 勾选后开机自动运行 |
 | 兼容模式 | 如果猫猫出现时背景是黑的（看不到桌面），勾上这个，程序会自动重启 |
 | 退出 | 关掉程序 |
 
-另外，电脑从睡眠中唤醒或者解锁屏幕后，计时会重新从 30 分钟开始。
+另外，电脑从睡眠中唤醒或者解锁屏幕后，计时会重新开始。
 
 ## 开发
 
@@ -51,7 +52,7 @@ CAT_VARIANT=munchkin npm start
 CAT_INTERVAL_SECONDS=10 CAT_DURATION_SECONDS=8 npm start
 ```
 
-启动时加 `--cat-now` 参数，会马上召唤一次猫猫。
+启动时加 `--cat-now` 参数，会马上召唤一次猫猫；加 `--interval-settings`，会直接打开“自定义间隔”的窗口。
 
 ### 每只猫的配置
 
@@ -85,12 +86,11 @@ venv/bin/python tools/make_cat_video.py 你的猫.mp4 assets/cats/<猫>/cat.webm
 
 需要先装好 ffmpeg。在 CPU 上每帧大约要 20 多秒。
 
-暹罗猫用的参数：把前面的篮子按帧沿横杆切掉，再把画面往下挪，让猫从屏幕底部升上来。
+暹罗猫用的参数：原视频是 1280×720、纯黑背景，直接按原尺寸抠图。
 
 ```bash
-venv/bin/python tools/make_cat_video.py cat.mp4 assets/cats/siamese/cat.webm --work work --no-fill \
-  --cut-keys "1:790,12:784,24:804,36:804,42:864,46:904,50:960,54:1000,58:1050,62:1100" \
-  --cut-slope -0.036 --lift-keys "1:1080,18:1080,31:0"
+venv/bin/python tools/make_cat_video.py siamese.mp4 assets/cats/siamese/cat.webm --work work \
+  --no-fill --width 1280 --height 720 --fps 24
 ```
 
 曼基康用的参数：原视频是手机竖拍的，先截取 14.0–18.0 秒（猫趴在毯子上、整只露出来的一段）、按 30fps 导出帧，再以猫身体底部为锚点做防抖，把猫放大到撑满画面高度，底部沿毯子的边缘渐隐。

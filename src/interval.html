@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>多久出现一次</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #fffaf3;
+    color: #4b3727;
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+
+  form {
+    box-sizing: border-box;
+    height: 100%;
+    padding: 22px 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  label { font-size: 15px; font-weight: 700; }
+
+  .row { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+
+  input {
+    width: 110px;
+    padding: 7px 10px;
+    font-size: 16px;
+    border: 1px solid #d8c7b5;
+    border-radius: 8px;
+    background: #fff;
+    color: inherit;
+  }
+
+  input:focus { outline: 2px solid #c58b55; outline-offset: 1px; }
+
+  #hint { font-size: 12px; color: #8a6f58; min-height: 16px; }
+  #hint.error { color: #c0392b; }
+
+  .buttons { margin-top: auto; display: flex; justify-content: flex-end; gap: 10px; }
+
+  button {
+    padding: 7px 18px;
+    font-size: 14px;
+    border-radius: 8px;
+    border: 1px solid #d8c7b5;
+    background: #fff;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  button[type="submit"] { background: #c58b55; border-color: #c58b55; color: #fff; }
+</style>
+</head>
+<body>
+<form id="form" novalidate>
+  <label for="minutes">猫猫多久出现一次？</label>
+  <div class="row">
+    每 <input id="minutes" type="number" inputmode="numeric" step="1" required> 分钟
+  </div>
+  <div id="hint"></div>
+  <div class="buttons">
+    <button type="button" id="cancel">取消</button>
+    <button type="submit">保存</button>
+  </div>
+</form>
+<script>
+  const params = new URLSearchParams(location.search);
+  const min = Number(params.get('min')) || 1;
+  const max = Number(params.get('max')) || 480;
+  const input = document.getElementById('minutes');
+  const hint = document.getElementById('hint');
+
+  input.min = min;
+  input.max = max;
+  input.value = params.get('current') || 30;
+  hint.textContent = `可以填 ${min} 到 ${max} 分钟，保存后从现在开始重新计时`;
+  input.select();
+
+  document.getElementById('cancel').addEventListener('click', () => window.close());
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.close(); });
+
+  document.getElementById('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const value = Number(input.value);
+    if (!Number.isInteger(value) || value < min || value > max) {
+      hint.textContent = `请填 ${min} 到 ${max} 之间的整数`;
+      hint.classList.add('error');
+      input.focus();
+      return;
+    }
+    const ok = await window.catBreak.setIntervalMinutes(value);
+    if (!ok) {
+      hint.textContent = '保存失败，请再试一次';
+      hint.classList.add('error');
+    }
+  });
+</script>
+</body>
+</html>
