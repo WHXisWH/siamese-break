@@ -86,11 +86,11 @@ venv/bin/python tools/make_cat_video.py 你的猫.mp4 assets/cats/<猫>/cat.webm
 
 需要先装好 ffmpeg。在 CPU 上每帧大约要 20 多秒。
 
-暹罗猫用的参数：原视频是 1280×720、纯黑背景，直接按原尺寸抠图。
+暹罗猫用的参数：原视频是 1280×720、纯黑背景，按原尺寸抠图。`--black-bg` 会利用“背景是纯黑”这一点，按透明度把边缘像素的颜色还原出来，不用模糊去修边，所以胡须、毛尖都很干净。
 
 ```bash
 venv/bin/python tools/make_cat_video.py siamese.mp4 assets/cats/siamese/cat.webm --work work \
-  --no-fill --width 1280 --height 720 --fps 24
+  --no-fill --black-bg --gamma 1.0 --width 1280 --height 720 --fps 24
 ```
 
 曼基康用的参数：原视频是手机竖拍的，先截取 14.0–18.0 秒（猫趴在毯子上、整只露出来的一段）、按 30fps 导出帧，再以猫身体底部为锚点做防抖，把猫放大到撑满画面高度，底部沿毯子的边缘渐隐。

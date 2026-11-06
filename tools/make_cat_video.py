@@ -175,7 +175,12 @@ def place(rgb, alpha, anchor, scale, size):
     return out_rgb, out_a
 
 
-def compose(frames, masks, out_dir, gamma, sigma, fill, cut_keys, cut_slope, cut_margin, lift_keys, feather, framing=None):
+def unpremultiply_black(rgb, alpha, floor):
+    fg = rgb / np.maximum(alpha, floor)[..., None]
+    return np.where((alpha > 0.01)[..., None], np.clip(fg, 0, 255), 0)
+
+
+def compose(frames, masks, out_dir, gamma, sigma, fill, cut_keys, cut_slope, cut_margin, lift_keys, feather, framing=None, black_bg=False):
     out_dir.mkdir(parents=True, exist_ok=True)
     keys = parse_cut_keys(cut_keys) if cut_keys else None
     lifts = parse_cut_keys(lift_keys) if lift_keys else None
@@ -186,7 +191,11 @@ def compose(frames, masks, out_dir, gamma, sigma, fill, cut_keys, cut_slope, cut
             alpha = fill_occluders(rgb, alpha)
         alpha = drop_fragments(alpha, 0.03)
         alpha = alpha ** gamma
-        rgb = decontaminate(rgb, alpha, sigma)
+        if black_bg:
+            alpha = np.where(alpha > 0.01, alpha, 0)
+            rgb = unpremultiply_black(rgb, alpha, 0.05)
+        else:
+            rgb = decontaminate(rgb, alpha, sigma)
         if framing:
             alpha = fade_bottom(alpha, framing["feather"])
             rgb, alpha = place(rgb, alpha, framing["anchors"][int(f.stem) - 1], framing["scale"], framing["size"])
@@ -244,6 +253,7 @@ def main():
     p.add_argument("--bottom-feather", type=float, default=40.0)
     p.add_argument("--anchor-window", type=int, default=9)
     p.add_argument("--skip-extract", action="store_true")
+    p.add_argument("--black-bg", action="store_true")
     args = p.parse_args()
 
     frames_dir = args.work / "frames"
@@ -266,7 +276,7 @@ def main():
         print(f"framing scale {scale:.2f}", flush=True)
 
     rgba_dir = args.work / "rgba"
-    compose(frames, masks, rgba_dir, args.gamma, args.decontam, not args.no_fill, args.cut_keys, args.cut_slope, args.cut_margin, args.lift_keys, args.cut_feather, framing)
+    compose(frames, masks, rgba_dir, args.gamma, args.decontam, not args.no_fill, args.cut_keys, args.cut_slope, args.cut_margin, args.lift_keys, args.cut_feather, framing, args.black_bg)
     encode(rgba_dir, [f.name for f in frames], args.output, args.fps, args.crf, not args.no_pingpong)
     print("done", args.output, flush=True)
 

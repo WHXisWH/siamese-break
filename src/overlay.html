@@ -63,6 +63,8 @@
   }
 
   body.in #bubble { opacity: 1; transform: translate(-50%, 0); transition-delay: 600ms; }
+  body.center #bubble { left: 4vw; transform: translate(0, -12px); }
+  body.center.in #bubble { transform: translate(0, 0); }
   body.out #bubble { opacity: 0; transition-delay: 0ms; }
 
   #title { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
